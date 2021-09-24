@@ -1,4 +1,4 @@
-package server
+package tcp
 
 type Handler interface {
 	MessageReceived(ctx Conn, msg Msg) error

@@ -1,10 +1,11 @@
-package server
+package tcp
 
 import (
 	"context"
 	"errors"
 	"fmt"
 	"github.com/google/uuid"
+	"github.com/ndhfs/gopool"
 	"io"
 	"net"
 	"sync"
@@ -12,17 +13,16 @@ import (
 )
 
 type Server struct {
-	opts   Options
-	l      net.Listener
-	runCtx context.Context
-	doneFn func()
-	wg     sync.WaitGroup
-	mu     sync.RWMutex
-	conns  map[string]*connection
-	ws     chan struct{}
-	ath    chan struct{}
+	opts       Options
+	l          net.Listener
+	runCtx     context.Context
+	doneFn     func()
+	wg         sync.WaitGroup
+	mu         sync.RWMutex
+	conns      map[string]*connection
+	workerPool *gopool.GoPool
 
-	handler Handler
+	handler      Handler
 	errorHandler ErrorHandler
 }
 
@@ -41,35 +41,34 @@ func (s *Server) Serve(ctx context.Context, network string, addr string) error {
 		return fmt.Errorf("failed start listener. %w", err)
 	}
 
+	acceptPool := gopool.NewGoPool(s.opts.acceptThreshold)
+
 	for {
-
-		select {
-		case s.ath <- struct{}{}:
-		default:
-			time.Sleep(1 * time.Millisecond)
-			continue
-		}
-
-		conn, err := s.l.Accept()
-		if err != nil {
-			select {
-			case <-s.runCtx.Done():
-				return nil
-			default:
-				if operr, ok := err.(*net.OpError); ok {
-					if operr.Temporary() {
-						s.logDebug("failed accept conn. %s", err)
-						<-s.ath
-						continue
+		err := acceptPool.Do(func() {
+			conn, err := s.l.Accept()
+			if err != nil {
+				select {
+				case <-s.runCtx.Done():
+					return
+				default:
+					if operr, ok := err.(*net.OpError); ok {
+						if operr.Temporary() {
+							s.logDebug("failed accept conn. %s", err)
+							return
+						}
 					}
+					s.logErr("failed accept conn. %s", err)
+					return
 				}
-				return fmt.Errorf("failed accept conn. %w", err)
 			}
-		}
 
-		c := s.newConnection(conn)
-		go s.handleConnection(c)
-		<-s.ath
+			c := s.newConnection(conn)
+			go s.handleConnection(c)
+		})
+
+		if err != nil {
+			time.Sleep(1 * time.Millisecond)
+		}
 	}
 }
 
@@ -159,6 +158,7 @@ func (s *Server) handleConnection(c *connection) {
 		}
 
 		c.conn.SetReadDeadline(time.Now().Add(s.opts.readTimeout))
+
 		b, err := s.opts.reader.Read(c.conn)
 
 		// Если завершились, не обрабатываем
@@ -192,12 +192,11 @@ func New(opts ...Option) *Server {
 
 	ctx, doneFn := context.WithCancel(context.Background())
 	return &Server{
-		opts:   o,
-		runCtx: ctx,
-		doneFn: doneFn,
-		conns:  make(map[string]*connection, 100),
-		ws:     make(chan struct{}, o.workersNum),
-		ath:    make(chan struct{}, o.acceptThreshold),
+		opts:       o,
+		runCtx:     ctx,
+		doneFn:     doneFn,
+		conns:      make(map[string]*connection, 100),
+		workerPool: gopool.NewGoPool(o.workersNum),
 	}
 }
 
@@ -227,12 +226,13 @@ func (s *Server) NumConns() interface{} {
 }
 
 func (s *Server) dispatch(c *connection, b []byte) error {
-	select {
-	case s.ws <- struct{}{}:
-		return s.dispatchAsync(c, b)
-	case <-time.After(s.opts.workerWaitTimeout):
+	err := s.workerPool.DoWithTimeout(s.opts.workerWaitTimeout, func() {
+		s.dispatchAsync(c, b)
+	})
+	if err != nil {
 		return ErrServerIsBusy
 	}
+	return nil
 }
 
 func (s *Server) handleError(c *connection, err error) {
@@ -243,29 +243,28 @@ func (s *Server) handleError(c *connection, err error) {
 	}
 }
 
-func (s *Server) dispatchAsync(c *connection, b []byte) error {
-	go func() {
-		defer func() {
-			<-s.ws
-		}()
+func (s *Server) dispatchAsync(c *connection, b []byte) {
+	s.logDebug("Received msg: %s", string(b))
+	if s.handler == nil {
+		s.logInfo("Handler not registered. Skipping")
+		return
+	}
 
-		// process message
-		s.logDebug("Received msg: %s", string(b))
-		if s.handler == nil {
-			s.logInfo("Handler not registered. Skipping")
-			return
-		}
-
-		msg, err := s.opts.encoder.Decode(b)
+	var m Msg = b
+	var err error
+	for _, encoder := range s.opts.decoders {
+		m, err = encoder.Decode(m)
 		if err != nil {
-			s.handleError(c, err)
-			return
+			break
 		}
+	}
+	if err != nil {
+		s.handleError(c, err)
+		return
+	}
 
-		if err := s.handler.MessageReceived(c, msg); err != nil {
-			s.handleError(c, err)
-			return
-		}
-	}()
-	return nil
+	if err := s.handler.MessageReceived(c, m); err != nil {
+		s.handleError(c, err)
+		return
+	}
 }

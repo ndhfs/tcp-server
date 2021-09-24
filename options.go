@@ -1,4 +1,4 @@
-package server
+package tcp
 
 import "time"
 
@@ -9,9 +9,9 @@ const (
 	defaultWorkersNum        = 100
 	defaultWorkerWaitTimeout = 15 * time.Second
 
-	defaultReadBufferSize    = 4096
+	defaultReadBufferSize = 4096
 
-	defaultAcceptThreshold   = 50
+	defaultAcceptThreshold = 50
 )
 
 type Options struct {
@@ -23,12 +23,12 @@ type Options struct {
 	workersNum        int
 	workerWaitTimeout time.Duration
 
-	acceptThreshold   int
+	acceptThreshold int
 
-	reader            Reader
-	writer            Writer
+	reader Reader
+	writer Writer
 
-	encoder           Encoder
+	decoders []Decoder
 }
 
 var defaultOptions = Options{
@@ -41,7 +41,7 @@ var defaultOptions = Options{
 	reader:            NewLineReader(defaultReadBufferSize),
 	writer:            NewLineWriter(),
 	acceptThreshold:   defaultAcceptThreshold,
-	encoder:           NewStringEncodeDecoder(),
+	decoders:          []Decoder{NewByteToStringConverter()},
 }
 
 //WithReadTimeout sets read deadline for income connects
@@ -63,6 +63,18 @@ func WithLogger(l Logger) Option {
 	}
 }
 
+func WithReader(reader Reader) Option {
+	return func(options *Options) {
+		options.reader = reader
+	}
+}
+
+func WithWriter(writer Writer) Option {
+	return func(options *Options) {
+		options.writer = writer
+	}
+}
+
 func WithListener(l Listener) Option {
 	return func(options *Options) {
 		options.listener = l
@@ -72,5 +84,11 @@ func WithListener(l Listener) Option {
 func WithDebugMode(on bool) Option {
 	return func(options *Options) {
 		options.debug = on
+	}
+}
+
+func WithDecoders(encoders ...Decoder) Option {
+	return func(options *Options) {
+		options.decoders = encoders
 	}
 }

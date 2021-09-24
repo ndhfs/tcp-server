@@ -1,11 +1,12 @@
-package server
+package tcp
 
 import (
+	"bytes"
 	"io"
 )
 
 type Writer interface {
-	Write(writer io.Writer, data []byte) error
+	Write(io.Writer, []byte) error
 }
 
 type LineWriter struct {
@@ -16,8 +17,10 @@ func NewLineWriter() *LineWriter {
 	return &LineWriter{}
 }
 
-func (l *LineWriter) Write(writer io.Writer, data []byte) error {
-	_, err := writer.Write(append(data, '\n'))
+func (l *LineWriter) Write(w io.Writer, b []byte) error {
+	buf := bytes.NewBuffer(b)
+	buf.WriteByte('\n')
+	_, err := io.Copy(w, buf)
 	return err
 }
 

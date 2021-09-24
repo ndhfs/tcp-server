@@ -1,33 +1,24 @@
-package server
-
-import "fmt"
+package tcp
 
 type Msg interface {}
 
-type Encoder interface {
-	Encode(v Msg) ([]byte, error)
-	Decode([]byte) (Msg, error)
+type Decoder interface {
+	Encode(Msg) (Msg, error)
+	Decode(Msg) (Msg, error)
 }
 
 type StringEncodeDecoder struct {
 }
 
-func NewStringEncodeDecoder() *StringEncodeDecoder {
+func NewByteToStringConverter() *StringEncodeDecoder {
 	return &StringEncodeDecoder{}
 }
 
-func (s *StringEncodeDecoder) Encode(v Msg) ([]byte, error) {
-	switch vv := v.(type) {
-	case []byte:
-		return vv, nil
-	case string:
-		return []byte(vv), nil
-	default:
-		return nil, fmt.Errorf("failed encode message. %w", ErrInvalidPackage)
-	}
+func (s *StringEncodeDecoder) Encode(v Msg) (Msg, error) {
+	return []byte(v.(string)), nil
 }
 
-func (s *StringEncodeDecoder) Decode(d []byte) (Msg, error) {
-	return string(d), nil
+func (s *StringEncodeDecoder) Decode(m Msg) (Msg, error) {
+	return string(m.([]byte)), nil
 }
 

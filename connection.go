@@ -1,4 +1,4 @@
-package server
+package tcp
 
 import (
 	"context"
@@ -53,14 +53,25 @@ func (c *connection) Duration() time.Duration {
 }
 
 func (c *connection) Send(v Msg) error {
-	b, err := c.s.opts.encoder.Encode(v)
+	var err error
+	for i := len(c.s.opts.decoders)-1; i >= 0; i-- {
+		v, err = c.s.opts.decoders[i].Encode(v)
+		if err != nil {
+			break
+		}
+	}
 	if err != nil {
 		return fmt.Errorf("failed encode message. %w", err)
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.conn.SetWriteDeadline(time.Now().Add(c.s.opts.writeTimeout))
-	return c.s.opts.writer.Write(c.conn, b)
+
+	if bb, ok := v.([]byte); ok {
+		return c.s.opts.writer.Write(c.conn, bb)
+	}
+
+	return fmt.Errorf("final Msg must be []byte")
 }
 
 func (c *connection) Close() error {

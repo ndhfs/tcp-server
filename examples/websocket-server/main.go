@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/gobwas/ws"
 	"github.com/ndhfs/tcp-server"
+	"github.com/ndhfs/tcp-server/websocket"
 	"log"
 	"os"
 	"os/signal"
@@ -25,11 +27,11 @@ func (s *SocketHandler) MessageReceived(c tcp.Conn, _data tcp.Msg) error {
 
 	switch cmd {
 	case "wait20":
-		c.Send([]byte(`waiting`))
+		c.Send("waiting")
 		go func() {
 			select {
 			case <-time.After(20 * time.Second):
-				c.Send([]byte(`waiting done\n`))
+				c.Send("waiting done")
 			case <-c.Context().Done():
 				fmt.Println("waiting aborted")
 			}
@@ -47,12 +49,34 @@ func (s *SocketHandler) ConnectionClosed(c tcp.Conn) error {
 	panic("implement me")
 }
 
+type SuffixEncoder struct {
+	suffix string
+}
+
+func NewSuffixDecoder(suffix string) *SuffixEncoder {
+	return &SuffixEncoder{suffix: suffix}
+}
+
+func (s *SuffixEncoder) Encode(msg tcp.Msg) (tcp.Msg, error) {
+	return append(msg.([]byte), []byte(s.suffix)...), nil
+}
+
+func (s *SuffixEncoder) Decode(msg tcp.Msg) (tcp.Msg, error) {
+	return []byte(strings.TrimSuffix(string(msg.([]byte)), s.suffix)), nil
+}
+
 func main() {
-	s := tcp.New(
+
+	s := tcp.New(append(
+		websocket.Opts(ws.OpBinary),
 		tcp.WithReadTimeout(15 * time.Second),
 		tcp.WithDebugMode(true),
-
-	)
+		tcp.WithDecoders(
+			NewSuffixDecoder("a"),
+			NewSuffixDecoder("b"),
+			tcp.NewByteToStringConverter(),
+		),
+	)...)
 
 	s.SetHandler(new(SocketHandler))
 	s.SetErrorHandler(func(ctx tcp.Conn, err error) {
