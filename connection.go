@@ -68,7 +68,7 @@ func (c *connection) Send(v Msg) error {
 	c.conn.SetWriteDeadline(time.Now().Add(c.s.opts.writeTimeout))
 
 	if bb, ok := v.([]byte); ok {
-		return c.s.opts.writer.Write(c.conn, bb)
+		return c.s.opts.processor.Write(c.conn, bb)
 	}
 
 	return fmt.Errorf("final Msg must be []byte")

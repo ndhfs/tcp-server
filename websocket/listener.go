@@ -1,14 +1,17 @@
 package websocket
 
 import (
+	"errors"
 	"fmt"
 	"github.com/gobwas/ws"
 	"net"
+	"time"
 )
 
 type Listener struct {
 	net.Listener
-	u  ws.Upgrader
+	p *Processor
+	u ws.Upgrader
 }
 
 func (w *Listener) Accept() (net.Conn, error) {
@@ -17,11 +20,24 @@ func (w *Listener) Accept() (net.Conn, error) {
 		return nil, err
 	}
 
+	conn.SetReadDeadline(time.Now().Add(time.Millisecond))
 	_, err = w.u.Upgrade(conn)
+	var isWs = true
 	if err != nil {
-		conn.Close()
-		return nil, fmt.Errorf("failed upgrate ws connection. %w", err)
+		if w.p.opts.alternativeProcessor != nil {
+			if errors.Is(err, ws.ErrMalformedRequest) {
+				isWs = false
+			} else if erop, ok := err.(*net.OpError); ok && erop.Timeout() {
+				isWs = false
+			} else {
+				conn.Close()
+				return nil, fmt.Errorf("failed upgrate ws connection. %w", err)
+			}
+		} else {
+			conn.Close()
+			return nil, fmt.Errorf("failed upgrate ws connection. %w", err)
+		}
 	}
 
-	return conn, err
+	return &Conn{Conn: conn, isWs: isWs}, nil
 }

@@ -36,7 +36,7 @@ func (s *Server) Serve(ctx context.Context, network string, addr string) error {
 		s.logInfo("Stop serving at %s %s", network, addr)
 	}()
 	var err error
-	s.l, err = s.opts.listener.Listen(ctx, network, addr)
+	s.l, err = s.opts.processor.Listen(ctx, network, addr)
 	if err != nil {
 		return fmt.Errorf("failed start listener. %w", err)
 	}
@@ -159,7 +159,7 @@ func (s *Server) handleConnection(c *connection) {
 
 		c.conn.SetReadDeadline(time.Now().Add(s.opts.readTimeout))
 
-		b, err := s.opts.reader.Read(c.conn)
+		b, err := s.opts.processor.Read(c.conn)
 
 		// Если завершились, не обрабатываем
 		select {

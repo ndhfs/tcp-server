@@ -67,16 +67,18 @@ func (s *SuffixEncoder) Decode(msg tcp.Msg) (tcp.Msg, error) {
 
 func main() {
 
-	s := tcp.New(append(
-		websocket.Opts(ws.OpBinary),
+	s := tcp.New(
+		tcp.WithProcessor(websocket.NewProcessor(
+			websocket.WithOpCode(ws.OpBinary),
+			websocket.WithAlternativeProcessor(tcp.NewRowSocketProcessor()),
+		)),
 		tcp.WithReadTimeout(15 * time.Second),
 		tcp.WithDebugMode(true),
 		tcp.WithDecoders(
-			NewSuffixDecoder("a"),
-			NewSuffixDecoder("b"),
+			NewSuffixDecoder(";"),
 			tcp.NewByteToStringConverter(),
 		),
-	)...)
+	)
 
 	s.SetHandler(new(SocketHandler))
 	s.SetErrorHandler(func(ctx tcp.Conn, err error) {

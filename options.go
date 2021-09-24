@@ -15,33 +15,28 @@ const (
 )
 
 type Options struct {
-	listener          Listener
+	processor         Processor
 	readTimeout       time.Duration
 	writeTimeout      time.Duration
 	logger            Logger
 	debug             bool
 	workersNum        int
 	workerWaitTimeout time.Duration
-
-	acceptThreshold int
-
-	reader Reader
-	writer Writer
-
-	decoders []Decoder
+	acceptThreshold   int
+	decoders          []Decoder
 }
 
+type Option func(options *Options)
+
 var defaultOptions = Options{
-	listener:          NewSimpleListener(),
 	readTimeout:       defaultReadTimeout,
 	writeTimeout:      defaultWriteTimeout,
 	logger:            NewStdLogger(),
 	workersNum:        defaultWorkersNum,
 	workerWaitTimeout: defaultWorkerWaitTimeout,
-	reader:            NewLineReader(defaultReadBufferSize),
-	writer:            NewLineWriter(),
 	acceptThreshold:   defaultAcceptThreshold,
 	decoders:          []Decoder{NewByteToStringConverter()},
+	processor:         NewRowSocketProcessor(),
 }
 
 //WithReadTimeout sets read deadline for income connects
@@ -63,21 +58,9 @@ func WithLogger(l Logger) Option {
 	}
 }
 
-func WithReader(reader Reader) Option {
+func WithProcessor(processor Processor) Option {
 	return func(options *Options) {
-		options.reader = reader
-	}
-}
-
-func WithWriter(writer Writer) Option {
-	return func(options *Options) {
-		options.writer = writer
-	}
-}
-
-func WithListener(l Listener) Option {
-	return func(options *Options) {
-		options.listener = l
+		options.processor = processor
 	}
 }
 
