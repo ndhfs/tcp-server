@@ -22,8 +22,14 @@ type Server struct {
 	conns      map[string]*connection
 	workerPool *gopool.GoPool
 
-	handler      Handler
-	errorHandler ErrorHandler
+	handler       Handler
+	subscriber    Subscriber
+	middlewares   []Middleware
+	errorHandler  ErrorHandler
+}
+
+func (s *Server) Subscribe(subscriber Subscriber) {
+	s.subscriber = subscriber
 }
 
 func (s *Server) SetErrorHandler(errorHandler ErrorHandler) {
@@ -63,6 +69,10 @@ func (s *Server) Serve(ctx context.Context, network string, addr string) error {
 			}
 
 			c := s.newConnection(conn)
+			if err := s.handleEvent(EventTypeAccepted, c); err != nil {
+				return
+			}
+
 			go s.handleConnection(c)
 		})
 
@@ -157,7 +167,9 @@ func (s *Server) handleConnection(c *connection) {
 		default:
 		}
 
-		c.conn.SetReadDeadline(time.Now().Add(s.opts.readTimeout))
+		if s.opts.readTimeout > 0 {
+			c.conn.SetReadDeadline(time.Now().Add(s.opts.readTimeout))
+		}
 
 		b, err := s.opts.processor.Read(c.conn)
 
@@ -200,8 +212,9 @@ func New(opts ...Option) *Server {
 	}
 }
 
-func (s *Server) SetHandler(handler Handler) {
+func (s *Server) SetHandler(handler Handler, middlewares ...Middleware) {
 	s.handler = handler
+	s.middlewares = middlewares
 }
 
 func (s *Server) logErr(format string, v ...interface{}) {
@@ -250,21 +263,35 @@ func (s *Server) dispatchAsync(c *connection, b []byte) {
 		return
 	}
 
-	var m Msg = b
-	var err error
-	for _, encoder := range s.opts.decoders {
-		m, err = encoder.Decode(m)
+	var msg Msg = b
+	if enc := c.s.opts.encoder; enc != nil {
+		var err error
+		msg, err = enc.Decode(msg)
 		if err != nil {
-			break
+			s.handleError(c, fmt.Errorf("failed decode message. %w", ErrInvalidPackage))
+			return
 		}
 	}
-	if err != nil {
-		s.handleError(c, err)
+
+	if s.handler == nil {
+		s.handleError(c, ErrHandlerNotRegistered)
 		return
 	}
 
-	if err := s.handler.MessageReceived(c, m); err != nil {
+	handler := s.handler
+	for _, middleware := range s.middlewares {
+		handler = middleware(handler)
+	}
+
+	if err := handler(c, msg); err != nil {
 		s.handleError(c, err)
 		return
 	}
+}
+
+func (s *Server) handleEvent(e EventType, c *connection) error {
+	if s.subscriber != nil {
+		return s.subscriber(e, c)
+	}
+	return nil
 }

@@ -1,8 +1,11 @@
 package tcp
 
-type Handler interface {
-	MessageReceived(ctx Conn, msg Msg) error
-	ConnectionClosed(ctx Conn) error
-}
+type Handler func(c Conn, m Msg) error
+type ErrorHandler func(c Conn, err error)
 
-type ErrorHandler func(ctx Conn, err error)
+type EventType int
+const (
+	EventTypeAccepted EventType = iota+1
+	EventTypeDisconnected
+)
+type Subscriber func(e EventType, c Conn) error

@@ -20,11 +20,11 @@ func (w *Listener) Accept() (net.Conn, error) {
 		return nil, err
 	}
 
-	conn.SetReadDeadline(time.Now().Add(time.Millisecond))
+	conn.SetReadDeadline(time.Now().Add(w.p.opts.backoffTimeout))
 	_, err = w.u.Upgrade(conn)
 	var isWs = true
 	if err != nil {
-		if w.p.opts.alternativeProcessor != nil {
+		if w.p.opts.backoffProcessor != nil {
 			if errors.Is(err, ws.ErrMalformedRequest) {
 				isWs = false
 			} else if erop, ok := err.(*net.OpError); ok && erop.Timeout() {

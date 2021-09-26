@@ -23,7 +23,7 @@ type Options struct {
 	workersNum        int
 	workerWaitTimeout time.Duration
 	acceptThreshold   int
-	decoders          []Decoder
+	encoder           Encoder
 }
 
 type Option func(options *Options)
@@ -35,7 +35,6 @@ var defaultOptions = Options{
 	workersNum:        defaultWorkersNum,
 	workerWaitTimeout: defaultWorkerWaitTimeout,
 	acceptThreshold:   defaultAcceptThreshold,
-	decoders:          []Decoder{NewByteToStringConverter()},
 	processor:         NewRowSocketProcessor(),
 }
 
@@ -70,8 +69,8 @@ func WithDebugMode(on bool) Option {
 	}
 }
 
-func WithDecoders(encoders ...Decoder) Option {
+func WithEncoder(enc Encoder) Option {
 	return func(options *Options) {
-		options.decoders = encoders
+		options.encoder = enc
 	}
 }

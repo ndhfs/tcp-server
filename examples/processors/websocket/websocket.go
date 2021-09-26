@@ -34,13 +34,17 @@ func (p *Processor) Listen(ctx context.Context, network string, addr string) (ne
 
 func (p *Processor) Read(in io.Reader) ([]byte, error) {
 	conn := in.(*Conn)
-	if !conn.isWs && p.opts.alternativeProcessor != nil {
-		return p.opts.alternativeProcessor.Read(in)
+	if !conn.isWs && p.opts.backoffProcessor != nil {
+		return p.opts.backoffProcessor.Read(in)
 	}
 
 	hdr, err := ws.ReadHeader(in)
 	if err != nil {
 		return nil, fmt.Errorf("failed read websocket header. %w", err)
+	}
+
+	if hdr.OpCode == ws.OpClose {
+		return nil, io.EOF
 	}
 
 	payload := make([]byte, hdr.Length)
@@ -56,8 +60,8 @@ func (p *Processor) Read(in io.Reader) ([]byte, error) {
 
 func (p *Processor) Write(wr io.Writer, b []byte) error {
 	conn := wr.(*Conn)
-	if !conn.isWs && p.opts.alternativeProcessor != nil {
-		return p.opts.alternativeProcessor.Write(wr, b)
+	if !conn.isWs && p.opts.backoffProcessor != nil {
+		return p.opts.backoffProcessor.Write(wr, b)
 	}
 
 	frame := ws.NewFrame(p.opts.opCode, true, b)

@@ -54,18 +54,20 @@ func (c *connection) Duration() time.Duration {
 
 func (c *connection) Send(v Msg) error {
 	var err error
-	for i := len(c.s.opts.decoders)-1; i >= 0; i-- {
-		v, err = c.s.opts.decoders[i].Encode(v)
+
+	if enc := c.s.opts.encoder; enc != nil {
+		v, err = enc.Encode(v)
 		if err != nil {
-			break
+			return fmt.Errorf("failed encode message. %w", err)
 		}
 	}
-	if err != nil {
-		return fmt.Errorf("failed encode message. %w", err)
-	}
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.conn.SetWriteDeadline(time.Now().Add(c.s.opts.writeTimeout))
+
+	if c.s.opts.writeTimeout > 0 {
+		c.conn.SetWriteDeadline(time.Now().Add(c.s.opts.writeTimeout))
+	}
 
 	if bb, ok := v.([]byte); ok {
 		return c.s.opts.processor.Write(c.conn, bb)
@@ -83,6 +85,7 @@ func (c *connection) Close() error {
 	c.mu.Unlock()
 	c.doneFn()
 	c.conn.Close()
+	c.s.handleEvent(EventTypeDisconnected, c)
 	return nil
 }
 

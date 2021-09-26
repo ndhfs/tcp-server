@@ -13,40 +13,6 @@ import (
 	"time"
 )
 
-type SocketHandler struct {
-
-}
-
-func (s *SocketHandler) MessageReceived(c tcp.Conn, _data tcp.Msg) error {
-	data := _data.(string)
-	log.Println("NEW MESSAGE", data)
-
-	cmd := strings.TrimSpace(data)
-
-	switch cmd {
-	case "wait20":
-		c.Send([]byte(`waiting`))
-		go func() {
-			select {
-			case <-time.After(20 * time.Second):
-				c.Send([]byte(`waiting done\n`))
-			case <-c.Context().Done():
-				fmt.Println("waiting aborted")
-			}
-		}()
-	case "close":
-		return c.Close()
-	case "err":
-		return errors.New("test error")
-	}
-
-	return nil
-}
-
-func (s *SocketHandler) ConnectionClosed(c tcp.Conn) error {
-	panic("implement me")
-}
-
 func main() {
 	s := tcp.New(
 		tcp.WithReadTimeout(15 * time.Second),
@@ -54,7 +20,7 @@ func main() {
 
 	)
 
-	s.SetHandler(new(SocketHandler))
+	s.SetHandler(newMessageHandler)
 	s.SetErrorHandler(func(ctx tcp.Conn, err error) {
 		ctx.Send("Err " + err.Error())
 		ctx.Close()
@@ -77,3 +43,28 @@ func main() {
 	<-sigCh
 }
 
+func newMessageHandler(c tcp.Conn, m tcp.Msg) error {
+	data := m.(string)
+	log.Println("NEW MESSAGE", data)
+
+	cmd := strings.TrimSpace(data)
+
+	switch cmd {
+	case "wait20":
+		c.Send("waiting")
+		go func() {
+			select {
+			case <-time.After(20 * time.Second):
+				c.Send("waiting done")
+			case <-c.Context().Done():
+				fmt.Println("waiting aborted")
+			}
+		}()
+	case "close":
+		return c.Close()
+	case "err":
+		return errors.New("test error")
+	}
+
+	return nil
+}

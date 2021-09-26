@@ -2,7 +2,7 @@ package tcp
 
 type Msg interface {}
 
-type Decoder interface {
+type Encoder interface {
 	Encode(Msg) (Msg, error)
 	Decode(Msg) (Msg, error)
 }
