@@ -1,6 +1,9 @@
 package tcp
 
-import "time"
+import (
+	"github.com/prometheus/client_golang/prometheus"
+	"time"
+)
 
 const (
 	defaultReadTimeout  = 30 * time.Second
@@ -15,6 +18,7 @@ const (
 )
 
 type Options struct {
+	name              string
 	processor         Processor
 	readTimeout       time.Duration
 	writeTimeout      time.Duration
@@ -24,11 +28,13 @@ type Options struct {
 	workerWaitTimeout time.Duration
 	acceptThreshold   int
 	encoder           Encoder
+	prom              prometheus.Registerer
 }
 
 type Option func(options *Options)
 
 var defaultOptions = Options{
+	name:              "default",
 	readTimeout:       defaultReadTimeout,
 	writeTimeout:      defaultWriteTimeout,
 	logger:            NewStdLogger(),
@@ -72,5 +78,11 @@ func WithDebugMode(on bool) Option {
 func WithEncoder(enc Encoder) Option {
 	return func(options *Options) {
 		options.encoder = enc
+	}
+}
+
+func WithPrometheus(prom prometheus.Registerer) Option {
+	return func(options *Options) {
+		options.prom = prom
 	}
 }

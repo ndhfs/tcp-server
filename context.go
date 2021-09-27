@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-type Conn interface {
+type Context interface {
 	ID() string
 	RemoteAddr() net.Addr
 	LocalAddr() net.Addr
@@ -17,42 +17,72 @@ type Conn interface {
 
 	Send(v Msg) error
 	Close() error
+	CloseWithErr(err error) error
 
 	Context() context.Context
+
+	Set(key string, v interface{})
+	Get(key string) (v interface{})
 }
 
-type connection struct {
+type Map map[string]interface{}
+
+type connContext struct {
+	mu        sync.Mutex
 	id        string
 	conn      net.Conn
 	createdAt time.Time
 	doneCtx   context.Context
 	doneFn    func()
 	closed    bool
-	mu        sync.Mutex
 	s         *Server
+	store     Map
 }
 
-func (c *connection) Context() context.Context {
+func (c *connContext) CloseWithErr(err error) error {
+	c.s.handleError(c, err)
+	return c.Close()
+}
+
+func (c *connContext) Set(key string, v interface{}) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.store == nil {
+		c.store = make(Map)
+	}
+
+	c.store[key] = v
+}
+
+func (c *connContext) Get(key string) (v interface{}) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	return c.store[key]
+}
+
+func (c *connContext) Context() context.Context {
 	return c.doneCtx
 }
 
-func (c *connection) ID() string {
+func (c *connContext) ID() string {
 	return c.id
 }
 
-func (c *connection) RemoteAddr() net.Addr {
+func (c *connContext) RemoteAddr() net.Addr {
 	return c.conn.RemoteAddr()
 }
 
-func (c *connection) LocalAddr() net.Addr {
+func (c *connContext) LocalAddr() net.Addr {
 	return c.conn.LocalAddr()
 }
 
-func (c *connection) Duration() time.Duration {
+func (c *connContext) Duration() time.Duration {
 	return time.Now().Sub(c.createdAt)
 }
 
-func (c *connection) Send(v Msg) error {
+func (c *connContext) Send(v Msg) error {
 	var err error
 
 	if enc := c.s.opts.encoder; enc != nil {
@@ -76,7 +106,7 @@ func (c *connection) Send(v Msg) error {
 	return fmt.Errorf("final Msg must be []byte")
 }
 
-func (c *connection) Close() error {
+func (c *connContext) Close() error {
 	c.mu.Lock()
 	if c.closed {
 		return nil

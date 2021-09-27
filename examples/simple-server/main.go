@@ -21,7 +21,7 @@ func main() {
 	)
 
 	s.SetHandler(newMessageHandler)
-	s.SetErrorHandler(func(ctx tcp.Conn, err error) {
+	s.SetErrorHandler(func(ctx tcp.Context, err error) {
 		ctx.Send("Err " + err.Error())
 		ctx.Close()
 	})
@@ -43,7 +43,7 @@ func main() {
 	<-sigCh
 }
 
-func newMessageHandler(c tcp.Conn, m tcp.Msg) error {
+func newMessageHandler(c tcp.Context, m tcp.Msg) error {
 	data := m.(string)
 	log.Println("NEW MESSAGE", data)
 

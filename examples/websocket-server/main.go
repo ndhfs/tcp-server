@@ -6,7 +6,10 @@ import (
 	"fmt"
 	"github.com/ndhfs/tcp-server"
 	"github.com/ndhfs/tcp-server/examples/processors/websocket"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"log"
+	"net/http"
 	"os"
 	"os/signal"
 	"strings"
@@ -39,19 +42,26 @@ func main() {
 		tcp.WithReadTimeout(15 * time.Second),
 		tcp.WithDebugMode(true),
 		tcp.WithEncoder(tcp.NewByteToStringConverter()),
+		tcp.WithPrometheus(prometheus.DefaultRegisterer),
 	)
 
-	s.SetHandler(newMessageHandler, func(handler tcp.Handler) tcp.Handler {
-		return func(c tcp.Conn, m tcp.Msg) error {
-			log.Println(" -> ", m)
+	go func() {
+		http.Handle("/metrics", promhttp.Handler())
+		go http.ListenAndServe(":8081", nil)
+
+	}()
+
+	s.SetHandler(createMessageHandler(s), func(handler tcp.Handler) tcp.Handler {
+		return func(c tcp.Context, m tcp.Msg) error {
+			c.Set("username", "Mike")
 			return handler(c, m)
 		}
 	})
-	s.Subscribe(func(e tcp.EventType, c tcp.Conn) error {
+	s.Subscribe(func(e tcp.EventType, c tcp.Context) error {
 		log.Println("EVENT: ", e, c.ID())
 		return nil
 	})
-	s.SetErrorHandler(func(c tcp.Conn, err error) {
+	s.SetErrorHandler(func(c tcp.Context, err error) {
 		c.Send("Err " + err.Error())
 		c.Close()
 	})
@@ -73,29 +83,36 @@ func main() {
 	<-sigCh
 }
 
-func newMessageHandler(c tcp.Conn, m tcp.Msg) error {
-	data := m.(string)
-	log.Println("NEW MESSAGE", data)
+func createMessageHandler(s *tcp.Server) tcp.Handler {
+	return func(c tcp.Context, m tcp.Msg) error {
+		data := m.(string)
+		log.Println("NEW MESSAGE", data)
 
-	cmd := strings.TrimSpace(data)
+		cmd := strings.TrimSpace(data)
 
-	switch cmd {
-	case "wait20":
-		c.Send("waiting")
-		go func() {
-			select {
-			case <-time.After(20 * time.Second):
-				c.Send("waiting done")
-			case <-c.Context().Done():
-				fmt.Println("waiting aborted")
-			}
-		}()
-	case "close":
-		return c.Close()
-	case "err":
-		return errors.New("test error")
+		switch cmd {
+		case "wait20":
+			c.Send("waiting")
+			username := c.Get("username").(string)
+			go func(cid string) {
+				select {
+				case <-time.After(20 * time.Second):
+					s.Send(cid, "waiting done; " + username)
+				case <-c.Context().Done():
+					fmt.Println("waiting aborted")
+				}
+			}(c.ID())
+		case "lock20":
+			time.Sleep(20 * time.Second)
+		case "close":
+			return c.Close()
+		case "close_w_err":
+			return c.CloseWithErr(errors.New("closed with error"))
+		case "err":
+			return errors.New("test error")
+		}
+
+		return nil
 	}
-
-	return nil
 }
 

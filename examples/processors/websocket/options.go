@@ -16,7 +16,7 @@ type Option func(options *Options)
 
 var defaultOptions = Options{
 	opCode:         ws.OpText,
-	backoffTimeout: 1 * time.Millisecond,
+	backoffTimeout: 5 * time.Second,
 }
 
 func WithOpCode(code ws.OpCode) Option {
