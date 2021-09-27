@@ -21,13 +21,18 @@ func NewProcessor(opts ...Option) *Processor {
 }
 
 func (p *Processor) Listen(ctx context.Context, network string, addr string) (net.Listener, error) {
-	nl, err := new(net.ListenConfig).Listen(ctx, network, addr)
-	if err != nil {
-		return nil, err
+	lis := p.opts.listener
+	if lis == nil {
+		var err error
+		lis, err = new(net.ListenConfig).Listen(ctx, network, addr)
+		if err != nil {
+			return nil, err
+		}
 	}
+
 	return &Listener{
 		p:        p,
-		Listener: nl,
+		Listener: lis,
 		u:        ws.Upgrader{},
 	}, nil
 }

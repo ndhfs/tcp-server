@@ -3,6 +3,7 @@ package websocket
 import (
 	"github.com/gobwas/ws"
 	"github.com/ndhfs/tcp-server"
+	"net"
 	"time"
 )
 
@@ -10,6 +11,7 @@ type Options struct {
 	opCode           ws.OpCode
 	backoffProcessor tcp.Processor
 	backoffTimeout   time.Duration
+	listener         net.Listener
 }
 
 type Option func(options *Options)
@@ -34,5 +36,11 @@ func WithBackoffProcessor(processor tcp.Processor) Option {
 func WithBackoffTimeout(duration time.Duration) Option {
 	return func(options *Options) {
 		options.backoffTimeout = duration
+	}
+}
+
+func WithListener(l net.Listener) Option {
+	return func(options *Options) {
+		options.listener = l
 	}
 }
