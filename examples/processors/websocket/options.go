@@ -11,7 +11,7 @@ type Options struct {
 	opCode           ws.OpCode
 	backoffProcessor tcp.Processor
 	backoffTimeout   time.Duration
-	listener         net.Listener
+	listener         tcp.Listener
 }
 
 type Option func(options *Options)
@@ -19,6 +19,7 @@ type Option func(options *Options)
 var defaultOptions = Options{
 	opCode:         ws.OpText,
 	backoffTimeout: 5 * time.Second,
+	listener:       new(net.ListenConfig),
 }
 
 func WithOpCode(code ws.OpCode) Option {
@@ -39,7 +40,7 @@ func WithBackoffTimeout(duration time.Duration) Option {
 	}
 }
 
-func WithListener(l net.Listener) Option {
+func WithListener(l tcp.Listener) Option {
 	return func(options *Options) {
 		options.listener = l
 	}
