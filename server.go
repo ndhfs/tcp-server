@@ -116,6 +116,22 @@ func (s *Server) Send(cid string, m Msg) error {
 	return conn.Send(m)
 }
 
+func (s *Server) CloseConn(cid string) error {
+	conn, err := s.getConn(cid)
+	if err != nil {
+		return fmt.Errorf("failed find connect by id %s. %w", cid, err)
+	}
+	return conn.Close()
+}
+
+func (s *Server) CloseConnWithError(cid string, err error) error {
+	conn, err := s.getConn(cid)
+	if err != nil {
+		return fmt.Errorf("failed find connect by id %s. %w", cid, err)
+	}
+	return conn.CloseWithErr(err)
+}
+
 func (s *Server) Shutdown(ctx context.Context) error {
 	s.logInfo("Shutting down tcp server")
 	defer func() {
