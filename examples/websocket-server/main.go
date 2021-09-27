@@ -110,6 +110,8 @@ func createMessageHandler(s *tcp.Server) tcp.Handler {
 			return c.CloseWithErr(errors.New("closed with error"))
 		case "err":
 			return errors.New("test error")
+		case "panic":
+			panic("I am panic")
 		}
 
 		return nil

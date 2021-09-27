@@ -312,6 +312,18 @@ func (s *Server) handleError(c *connContext, err error) {
 }
 
 func (s *Server) dispatchAsync(c *connContext, b []byte) {
+	defer func() {
+		if err := recover(); err != nil {
+			switch er := err.(type) {
+			case error:
+				s.handleError(c, er)
+			case string:
+				s.handleError(c, errors.New(er))
+			default:
+				s.handleError(c, fmt.Errorf("unexpected error: %v", er))
+			}
+		}
+	}()
 	s.logDebug("Received msg: %s", string(b))
 	if s.handler == nil {
 		s.logInfo("Handler not registered. Skipping")
