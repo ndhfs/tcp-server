@@ -1,6 +1,7 @@
 package websocket
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"github.com/gobwas/ws"
@@ -38,24 +39,33 @@ func (p *Processor) Read(in io.Reader) ([]byte, error) {
 		return p.opts.backoffProcessor.Read(in)
 	}
 
-	hdr, err := ws.ReadHeader(in)
-	if err != nil {
-		return nil, fmt.Errorf("failed read websocket header. %w", err)
-	}
+	var buf bytes.Buffer
+	for {
+		hdr, err := ws.ReadHeader(in)
+		if err != nil {
+			return nil, fmt.Errorf("failed read websocket header. %w", err)
+		}
 
-	if hdr.OpCode == ws.OpClose {
-		return nil, io.EOF
-	}
+		if hdr.OpCode == ws.OpClose {
+			return nil, io.EOF
+		}
 
-	payload := make([]byte, hdr.Length)
-	_, err = io.ReadFull(in, payload)
-	if err != nil {
-		// handle error
+		payload := make([]byte, hdr.Length)
+		_, err = io.ReadFull(in, payload)
+		if err != nil {
+			// handle error
+		}
+		if hdr.Masked {
+			ws.Cipher(payload, hdr.Mask, 0)
+		}
+
+		buf.Write(payload)
+
+		if hdr.Fin {
+			break
+		}
 	}
-	if hdr.Masked {
-		ws.Cipher(payload, hdr.Mask, 0)
-	}
-	return payload, err
+	return buf.Bytes(), nil
 }
 
 func (p *Processor) Write(wr io.Writer, b []byte) error {
