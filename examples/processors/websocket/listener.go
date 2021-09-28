@@ -1,7 +1,7 @@
 package websocket
 
 import (
-	"errors"
+	"bufio"
 	"fmt"
 	"github.com/gobwas/ws"
 	"net"
@@ -20,24 +20,28 @@ func (w *Listener) Accept() (net.Conn, error) {
 		return nil, err
 	}
 
-	conn.SetReadDeadline(time.Now().Add(w.p.opts.backoffTimeout))
-	_, err = w.u.Upgrade(conn)
 	var isWs = true
+
+	conn.SetReadDeadline(time.Now().Add(w.p.opts.backoffTimeout))
+	br := bufio.NewReadWriter(bufio.NewReader(conn), bufio.NewWriter(conn))
+	first3Bytes, err := br.Peek(3)
 	if err != nil {
-		if w.p.opts.backoffProcessor != nil {
-			if errors.Is(err, ws.ErrMalformedRequest) {
-				isWs = false
-			} else if erop, ok := err.(*net.OpError); ok && erop.Timeout() {
-				isWs = false
-			} else {
-				conn.Close()
-				return nil, fmt.Errorf("failed upgrate ws connection. %w", err)
-			}
+		if erop, ok := err.(*net.OpError); ok && erop.Timeout() {
+			isWs = false
 		} else {
 			conn.Close()
 			return nil, fmt.Errorf("failed upgrate ws connection. %w", err)
 		}
+	} else if string(first3Bytes) == "GET" {
+		_, err = w.u.Upgrade(br)
+		if err != nil {
+			conn.Close()
+			return nil, fmt.Errorf("failed upgrate ws connection. %w", err)
+		}
+		br.Flush()
+	} else {
+		isWs = false
 	}
 
-	return &Conn{Conn: conn, isWs: isWs}, nil
+	return &Conn{Conn: conn, bf: br, isWs: isWs}, nil
 }

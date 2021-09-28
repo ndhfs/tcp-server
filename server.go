@@ -70,7 +70,8 @@ func (s *Server) Serve(ctx context.Context, network string, addr string) error {
 						continue
 					}
 				}
-				return fmt.Errorf("failed accept conn. %s", err)
+				s.logErr(fmt.Sprintf("failed accept conn. %s", err))
+				continue
 			}
 		}
 

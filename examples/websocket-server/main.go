@@ -72,7 +72,7 @@ func main() {
 		s.GracefulShutdown(ctx)
 	}()
 	go func() {
-		if err := s.Serve(context.Background(), "tcp4", ":8080"); err != nil {
+		if err := s.Serve(context.Background(), "tcp4", ":8082"); err != nil {
 			panic(fmt.Errorf("failed server tcp server. %w", err))
 		}
 	}()
