@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/ndhfs/tcp-server"
-	"github.com/ndhfs/tcp-server/examples/processors/websocket"
+	"github.com/ndhfs/tcp-server/processors/websocket"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"log"
