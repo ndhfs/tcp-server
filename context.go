@@ -109,6 +109,7 @@ func (c *connContext) Send(v Msg) error {
 func (c *connContext) Close() error {
 	c.mu.Lock()
 	if c.closed {
+		c.mu.Unlock()
 		return nil
 	}
 	c.closed = true
