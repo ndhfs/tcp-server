@@ -64,11 +64,9 @@ func (s *Server) Serve(ctx context.Context, network string, addr string) error {
 			case <-s.runCtx.Done():
 				return nil
 			default:
-				if operr, ok := err.(*net.OpError); ok {
-					if operr.Temporary() {
-						s.logDebug("failed accept conn. %s", err)
-						continue
-					}
+				var operr *net.OpError
+				if errors.As(err, &operr) && (operr.Temporary() || operr.Timeout()) {
+					s.logDebug("failed accept conn. %s", err)
 				}
 				s.logErr(fmt.Sprintf("failed accept conn. %s", err))
 				continue
@@ -234,7 +232,7 @@ func (s *Server) handleConnection(c *connContext) {
 		if err != nil {
 			var erop *net.OpError
 			if errors.Is(err, io.EOF) {
-			} else if errors.As(err, &erop) && erop.Timeout() {
+			} else if errors.As(err, &erop) && (erop.Timeout()) {
 			} else {
 				s.logErr("Err read conn. %s", err)
 			}
