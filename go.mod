@@ -7,4 +7,5 @@ require (
 	github.com/google/uuid v1.3.0
 	github.com/ndhfs/gopool v0.0.0-20210923164558-cb2a488da28b // indirect
 	github.com/prometheus/client_golang v1.11.0 // indirect
+	go.uber.org/ratelimit v0.2.0 // indirect
 )

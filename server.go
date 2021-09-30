@@ -96,6 +96,7 @@ func (s *Server) newContext(conn net.Conn) *connContext {
 		createdAt: time.Now(),
 		s:         s,
 		store:     make(Map),
+		rl:        s.opts.rl(),
 	}
 
 	c.doneCtx, c.doneFn = context.WithCancel(s.runCtx)
@@ -289,6 +290,7 @@ func (s *Server) NumConns() interface{} {
 }
 
 func (s *Server) dispatch(c *connContext, b []byte) error {
+	c.rl.Take()
 	err := s.workerPool.DoWithTimeout(s.opts.workerWaitTimeout, func() {
 		s.metrics.workersIdleDec()
 		defer func() {

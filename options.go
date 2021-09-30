@@ -29,6 +29,7 @@ type Options struct {
 	acceptThreshold   int
 	encoder           Encoder
 	prom              prometheus.Registerer
+	rl                RateLimiterFactory
 }
 
 type Option func(options *Options)
@@ -42,6 +43,7 @@ var defaultOptions = Options{
 	workerWaitTimeout: defaultWorkerWaitTimeout,
 	acceptThreshold:   defaultAcceptThreshold,
 	processor:         NewRowSocketProcessor(),
+	rl:                NewUnlimitedRateLimitFactory(),
 }
 
 //WithReadTimeout sets read deadline for income connects
@@ -84,5 +86,11 @@ func WithEncoder(enc Encoder) Option {
 func WithPrometheus(prom prometheus.Registerer) Option {
 	return func(options *Options) {
 		options.prom = prom
+	}
+}
+
+func WithRateLimiter(rl RateLimiterFactory) Option {
+	return func(options *Options) {
+		options.rl = rl
 	}
 }

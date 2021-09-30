@@ -37,6 +37,7 @@ type connContext struct {
 	closed    bool
 	s         *Server
 	store     Map
+	rl        RateLimiter
 }
 
 func (c *connContext) CloseWithErr(err error) error {

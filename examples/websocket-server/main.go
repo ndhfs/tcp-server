@@ -43,6 +43,9 @@ func main() {
 		tcp.WithDebugMode(true),
 		tcp.WithEncoder(tcp.NewByteToStringConverter()),
 		tcp.WithPrometheus(prometheus.DefaultRegisterer),
+		tcp.WithRateLimiter(func() tcp.RateLimiter {
+			return tcp.NewUberRateLimiter(1)
+		}),
 	)
 
 	go func() {
@@ -112,6 +115,8 @@ func createMessageHandler(s *tcp.Server) tcp.Handler {
 			return errors.New("test error")
 		case "panic":
 			panic("I am panic")
+		default:
+			return c.Send("<-" + cmd)
 		}
 
 		return nil
